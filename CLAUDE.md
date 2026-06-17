@@ -22,6 +22,22 @@
 - [ ] 敏感原始资料未入库（已在 `.gitignore`）
 - [ ] 提交信息与分支/标签名同样不含上述敏感信息
 
+## 🧭 北极星：产品形态与多租户模式（开发者时刻谨记）
+
+本平台**双模交付**，所有设计与代码都须按此模式思考：
+
+| | 公网 SaaS | 私有化部署 |
+|--|--|--|
+| 运营 / 品牌 | 我们运营 · **我们公司统一品牌** | 客户环境 · **客户品牌（部署级）** |
+| 租户 = | 企业客户 | 客户的部门 |
+
+- **品牌是部署级**（部署期配置注入），**不按租户在运行期动态换肤**。
+- **多租户隔离（C 分层桥接）**：控制平面共享 + 数据平面按租户隔离。身份 = Keycloak **Organizations 单 realm**（org=租户，JWT 带 tenant 声明）；数据 = **schema/db-per-tenant**；计算 = **namespace-per-tenant**；由 `control-plane` 编排开通。
+
+**本仓视角（gateway）**：网关是**租户上下文进入系统的第一道关**——校验 Keycloak OIDC（单 realm + Organizations），从 JWT 的 org/tenant 声明**注入 `X-Tenant-*` 头**下发各服务；按部署 / 租户做路由与限流。
+
+> 全局定义见主仓 `docs/00-主仓初始化-spec.md` 与 `docs/architecture/05-多租户与控制平面.md`。
+
 ## 仓库定位
 
 南北向网关子模块：路由 / 限流 / 鉴权(OIDC) / 审计 的配置与插件。APISIX 或 Spring Cloud Gateway 待定。
