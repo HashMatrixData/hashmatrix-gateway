@@ -2,7 +2,7 @@
 
 > hashmatrix 数据中台子模块 · 所属：网关层
 >
-> 主仓：[JIAQIA/hashmatrix](https://github.com/JIAQIA/hashmatrix)
+> 主仓：[HashMatrixData/hashmatrix](https://github.com/HashMatrixData/hashmatrix)
 
 ## 职责
 
