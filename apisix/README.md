@@ -36,6 +36,24 @@
 |--|--|--|
 | `/api/*` | ✅ auth-tenant | 受保护 API，按租户 100/min |
 | `/ratelimit/*` | ✅ auth-tenant | 限流样例，按租户 2/60s（便于冒烟验证每租户独立配额） |
+| `/admin/*` | ✅ auth-tenant（`require_tenant=false`） | admin/superadmin 平面：OIDC 校验通过即放行，**不要求租户上下文** |
 | `/public/*` | ❌ | 公共开放端点；含 `response-rewrite`，用于热加载演示 |
 
 > 🔒 `openid-connect` 与 `tenant-context` 通过共享 `plugin_config` 绑定为一对——漏配前者时后者 fail-closed，杜绝静默注入伪造租户。详见 [`../plugins/README.md`](../plugins/README.md)。
+
+### admin 平面：复用 `auth-tenant` + 路由级覆盖（不另建 plugin_config）
+
+`/admin/*` 服务**不绑 org 的 superadmin**（管理平面无租户上下文）。它**复用**同一 `auth-tenant`（`openid-connect` 仍验签、`audit-log` 仍审计），仅在路由级把 `tenant-context` 覆盖为 `require_tenant: false`：
+
+```yaml
+  - id: admin-api
+    uri: /admin/*
+    plugin_config_id: auth-tenant
+    plugins:
+      tenant-context:
+        require_tenant: false   # 路由级同名插件优先于 plugin_config，整块替换；其余字段沿用插件默认
+```
+
+- **为什么不另建 `auth-admin`**：`openid-connect` 的 `discovery`/`client_id` 是易漂移的关键配置，单一事实源更稳；路由级覆盖只动 `tenant-context` 一项，OIDC 与审计零重复。
+- **语义**：路由级同名插件**整块替换** `plugin_config` 中的同名插件（非深合并），故覆盖块只需写差异项 `require_tenant: false`，其余字段由插件 schema 默认补齐（与 `auth-tenant` 一致）。
+- **安全不降级**：`require_tenant=false` 仅放宽「无租户即放行」；进入仍**剥离**客户端伪造的 `X-Tenant-*`，superadmin 无 org 声明 → **不注入**任何租户头（不会被错注租户）。同一 superadmin 打 `/api/*` 仍 `require_tenant=true` → fail-closed `403`。

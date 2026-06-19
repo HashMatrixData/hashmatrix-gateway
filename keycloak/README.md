@@ -21,8 +21,11 @@
 | `bob` | `[tenant-demo]` | — | `tenant-demo`、200 | 单一 membership（b） |
 | `carol` | `[acme, tenant-demo]` | `acme` | `acme`、200 | 活动 org 优先（a） |
 | `dave` | `[acme, tenant-demo]` | — | 边缘 `403` | 多 membership 无活动声明（c） |
+| `superadmin` | —（**无属性 / 不绑 org**） | — | 无租户 → admin 路由 200、租户路由 `403` | admin 平面（无租户上下文） |
 
 `carol` / `dave` 为**契约用户**：覆盖修订后 ICD §3.4「单活动租户 + 结构预留多 membership」的三分支（见 `scripts/smoke_test.py`）。
+
+`superadmin` 为**管理平面用户**：不设 `tenant` / `active_tenant` 属性，故 token **不含** `organization` / `active_organization` 声明（属性映射器在用户无该属性时不产出 claim）→ 网关解析为「无租户」。经 `/admin/*`（`require_tenant=false`）放行 200；经租户路由 `/api/*`（`require_tenant=true`）则 fail-closed `403`——即「OIDC 已校验、但拒绝在无租户上下文下访问租户隔离资源」（见 [`../apisix/README.md`](../apisix/README.md) admin 平面、`scripts/smoke_test.py`）。复用现有 `apisix` client（已开 Direct Access Grants），**无需新建 console client**。
 
 ## 租户声明（org → JWT → X-Tenant-*）
 

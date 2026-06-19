@@ -154,6 +154,34 @@ def main():
     code_bob, _ = http("GET", f"{GW}/ratelimit/get", headers={"Authorization": f"Bearer {token2}"})
     check("不同租户配额互不影响（bob 仍 200）", code_bob == 200, f"got {code_bob}")
 
+    # 9) admin 路由仍验签：未登录 / 坏 token → 401
+    #    守护「openid-connect 经 plugin_config 在 admin 路由依然生效」这一安全前提——
+    #    若误把本路由改成不绑 plugin_config_id（只留 require_tenant=false），将退化为无验签放行，本用例可发现。
+    code, _ = http("GET", f"{GW}/admin/headers")
+    check("admin 路由无 token → 401（OIDC 仍验签）", code == 401, f"got {code}")
+    code, _ = http("GET", f"{GW}/admin/headers", headers={"Authorization": "Bearer not-a-valid-jwt"})
+    check("admin 路由坏 token → 401", code == 401, f"got {code}")
+
+    # 10) admin 平面：superadmin（不绑 org、无租户声明）经 admin 路由放行 200（OIDC 校验通过、不要求租户）；
+    #     既不注入租户头，也剥离客户端伪造的 X-Tenant-*（信任根与租户路由一致）
+    token_su = get_token("superadmin", "Passw0rd!")
+    code, body = http("GET", f"{GW}/admin/headers", headers={
+        "Authorization": f"Bearer {token_su}",
+        "X-Tenant-Id": "spoofed-by-client",
+    })
+    check("superadmin 经 admin 路由放行 200（require_tenant=false）", code == 200, f"got {code}")
+    headers_su = json.loads(body).get("headers", {}) if code == 200 else {}
+    tid_su = header_value(headers_su, "X-Tenant-Id")
+    org_su = header_value(headers_su, "X-Tenant-Org")
+    check("admin 平面不注入且剥离 X-Tenant-Id（superadmin 无租户上下文）",
+          tid_su is None, f"got {tid_su!r}")
+    check("admin 平面不注入 X-Tenant-Org", org_su is None, f"got {org_su!r}")
+
+    # 11) superadmin 打租户隔离路由 → 无 org/tenant 声明 → fail-closed 403（绝不错注租户，符合 ICD §3）
+    code, _ = http("GET", f"{GW}/api/headers",
+                   headers={"Authorization": f"Bearer {token_su}"})
+    check("superadmin 访问租户路由 → fail-closed 403（require_tenant）", code == 403, f"got {code}")
+
     print()
     if FAILS:
         sys.exit(f"SMOKE FAILED ({len(FAILS)} check(s)): {', '.join(FAILS)}")

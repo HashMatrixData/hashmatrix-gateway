@@ -118,6 +118,17 @@
       "credentials": [
         { "type": "password", "value": "Passw0rd!", "temporary": false }
       ]
+    },
+    {
+      "username": "superadmin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "superadmin@example.com",
+      "firstName": "Super",
+      "lastName": "Admin",
+      "credentials": [
+        { "type": "password", "value": "Passw0rd!", "temporary": false }
+      ]
     }
   ]
 }

@@ -74,6 +74,22 @@ routes:
         rejected_code: 429
         policy: local
 
+  # ── admin 平面：OIDC 校验但不要求租户（superadmin 不绑 org，无租户上下文） ──
+  # 复用 auth-tenant 的 openid-connect/audit-log（单一事实源），仅在路由级覆盖 tenant-context
+  # 关闭租户强制——路由级同名插件优先于 plugin_config，整块替换、其余字段沿用插件默认。
+  # 验收：superadmin（无 org claim）放行 200 且不被错注 X-Tenant-*；同一身份打租户路由仍 fail-closed 403。
+  - id: admin-api
+    name: admin-api
+    desc: "admin/superadmin 平面——OIDC 校验、无租户上下文"
+    uri: /admin/*
+    upstream_id: mock-upstream
+    plugin_config_id: auth-tenant
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/admin/(.*)", "/$1"]
+      tenant-context:
+        require_tenant: false   # 其余字段沿用插件默认（与 auth-tenant 一致）；admin 平面无租户即放行
+
   # ── 公共路由：无需认证（开放/健康端点示例），并用于热加载演示 ──
   - id: public-open
     name: public-open
