@@ -22,6 +22,27 @@
 - `apisix.yaml` **必须以 `#END` 结尾**（standalone 模式的结束标记）。
 - 启用自定义插件：在 `config.yaml` 的 `plugins:` 列表登记插件名（如 `tenant-context`），并把 `plugins/*.lua` 挂载到容器的 `apisix/plugins/` 路径（见 `docker-compose.local.yml`）。`plugins:` 显式声明会**覆盖**默认插件集，故需列全用到的插件。
 
+## 本地 compose vs 集群（部署级注入点）
+
+本目录的 `apisix.yaml` 是**本地 compose 自洽**的事实源（mock 上游、同名 Keycloak Service，一 clone 即跑）。**集群**部署不直接 copy 本文件——主仓 `deploy/charts/gateway` 渲染一份**集群版** `apisix.yaml`（`templates/configmap.yaml`），把 env-specific 字段经 **values → ConfigMap** 注入。两处职责切分如下（标 🌱 的两点即 `apisix.yaml` 内注释的注入点）：
+
+| 注入点 | 本地 compose 值 | 集群来源（唯一事实源） | 集群默认 |
+|--|--|--|--|
+| 🌱① 上游目标 | `mock-upstream:8080`（go-httpbin 回显头） | chart `values.upstreams.governance.{host,port}` | `governance:8082`（跨 ns 用 FQDN `governance.<ns>.svc:8082`） |
+| 🌱② OIDC discovery | `http://keycloak:8080/realms/hashmatrix/...` | chart `values.oidc.discovery` | in-cluster Keycloak（同名 `keycloak:8080`；跨 ns 用 FQDN `keycloak.<ns>.svc:8080`） |
+
+> 🔒 **集群侧端口对齐基线**：governance 应用容器端口 **8082**（`8084` 是 data-foundation，勿混）；Keycloak 集群内 Service→Pod 用 **8080**（基线 `8180` 仅宿主/dev 暴露，勿写进集群 discovery）。
+
+**无双源/漂移**：集群值的**唯一事实源是 chart values**，本文件**不复制**集群值——只在两个注入点用注释标明「此处本地值、集群由 chart 注入」。其余配置/插件按下表流转：
+
+| 来源（本目录 / `../plugins`） | 集群处理 | 同步方式 |
+|--|--|--|
+| `config.yaml`（静态，env-agnostic） | vendored 副本 → ConfigMap | `bash deploy/scripts/sync-gateway-config.sh`（`--check` 即漂移门） |
+| `../plugins/*.lua` | vendored 副本 → ConfigMap（subPath 挂载） | 同上 |
+| `apisix.yaml`（声明式） | **不 copy**：chart 渲染集群版（结构镜像本文件，注入点按 values） | 不同步（走模板） |
+
+> ⚠️ **集群版只落贯通必需路由**（M1 I2：`protected-api` + 可达性探活 `public-open`）；本地演示/限流路由（如 `ratelimit-demo`）与 mock 上游**仅本地自洽**、不入集群。`admin-api`（superadmin 管理平面，见本目录「admin 平面」节）M1 **集群暂不落地**——待 control-plane 管理面接通后，再按本规则同步进 chart。集群路由的权威清单以 chart `templates/configmap.yaml` 为准——**本目录新增受保护路由时，需在 chart 侧手工同步扩展**（见主仓 [`deploy/charts/gateway/README.md`](https://github.com/HashMatrixData/hashmatrix/tree/main/deploy/charts/gateway)）。
+
 ## 路由与插件链
 
 受保护路由共享 `plugin_config: auth-tenant`（`openid-connect` + `tenant-context` + `audit-log`，DRY），再各自叠加 `proxy-rewrite` 与 `limit-count`：

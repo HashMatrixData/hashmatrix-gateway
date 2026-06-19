@@ -54,7 +54,7 @@ docker compose -f docker-compose.local.yml down -v
 | `docker-compose.local.yml` | 本地一键起栈 |
 
 > **配置落地选型**：采用 APISIX **standalone（声明式 YAML）** 而非 etcd 传统模式——`apisix.yaml` 即唯一事实源，避免业务配置与 etcd 耦合/漂移，契合 K8s/GitOps。详见 [`apisix/README.md`](apisix/README.md)。
-> **生产部署**：经主仓 `deploy/charts/gateway` 子 chart 渲染为 ConfigMap 注入 APISIX。
+> **生产部署**：经主仓 `deploy/charts/gateway` 子 chart 渲染为 ConfigMap 注入 APISIX；env-specific 字段（上游目标 / OIDC discovery）由 chart values 注入——本地 mock 与集群真实目标的切分见 [`apisix/README.md`](apisix/README.md)「本地 compose vs 集群」。
 
 ## 产品形态与多租户（北极星）
 

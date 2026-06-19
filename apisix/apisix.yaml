@@ -5,6 +5,12 @@
 # 末尾的 #END 是 standalone 模式的必需结束标记，请勿删除。
 # ──────────────────────────────────────────────────────────────────────────
 
+# 🌱 部署级可注入点 ①：上游目标。
+# 本地 compose 自洽值 = mock-upstream（go-httpbin，回显请求头便于冒烟断言）。
+# 集群部署时由主仓 deploy/charts/gateway 经 values→ConfigMap 渲染为**真实 in-cluster governance**
+# （chart 默认 `governance:8082`；跨 ns 用 FQDN `governance.<ns>.svc:8082`）——
+# 本文件不复制集群值（避免双源/漂移），集群目标唯一事实源 = chart `values.upstreams.governance.*`。
+# 两条路径差异见 README.md「本地 compose vs 集群（部署级注入点）」。
 upstreams:
   - id: mock-upstream
     name: mock-upstream
@@ -22,6 +28,10 @@ plugin_configs:
         client_id: apisix
         # 公开客户端 + JWKS 本地验签，不使用该密钥；此处仅为 schema 占位，非敏感信息。
         client_secret: "local-dev-unused-bearer-jwks"
+        # 🌱 部署级可注入点 ②：OIDC discovery（in-cluster Keycloak）。
+        # 本地 compose 与 chart 默认恰好同名 Service `keycloak:8080`，故下方字符串两路径一致；
+        # 集群值仍由 chart `values.oidc.discovery` 注入为唯一事实源（跨 ns 用 FQDN `keycloak.<ns>.svc:8080`）。
+        # 集群侧用应用容器端口 8080（基线 8180 仅宿主/dev 暴露，勿写进集群 discovery）。
         discovery: "http://keycloak:8080/realms/hashmatrix/.well-known/openid-configuration"
         bearer_only: true
         use_jwks: true
