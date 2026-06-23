@@ -23,6 +23,12 @@
       "domains": [{ "name": "demo.example.com", "verified": true }]
     }
   ],
+  "roles": {
+    "realm": [
+      { "name": "security-viewer", "description": "数据安全：只读查看（probe/分类分级/审计查询）— 脱敏 demo 角色" },
+      { "name": "security-admin", "description": "数据安全：管理（库表级授权）— 脱敏 demo 角色" }
+    ]
+  },
   "clients": [
     {
       "clientId": "apisix",
@@ -66,6 +72,21 @@
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
           }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "usermodel.realmRoleMapping.rolePrefix": "",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
         }
       ]
     }
@@ -79,6 +100,7 @@
       "firstName": "Alice",
       "lastName": "Demo",
       "attributes": { "tenant": ["acme"] },
+      "realmRoles": ["security-viewer"],
       "credentials": [
         { "type": "password", "value": "Passw0rd!", "temporary": false }
       ]
@@ -103,6 +125,7 @@
       "firstName": "Carol",
       "lastName": "Demo",
       "attributes": { "tenant": ["acme", "tenant-demo"], "active_tenant": ["acme"] },
+      "realmRoles": ["security-viewer", "security-admin"],
       "credentials": [
         { "type": "password", "value": "Passw0rd!", "temporary": false }
       ]

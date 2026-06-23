@@ -26,6 +26,7 @@ services:
       - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
       - ./plugins/tenant-context.lua:/usr/local/apisix/apisix/plugins/tenant-context.lua:ro
+      - ./plugins/identity-context.lua:/usr/local/apisix/apisix/plugins/identity-context.lua:ro
       - ./plugins/audit-log.lua:/usr/local/apisix/apisix/plugins/audit-log.lua:ro
 
   keycloak:

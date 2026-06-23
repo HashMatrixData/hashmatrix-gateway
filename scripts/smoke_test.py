@@ -48,9 +48,11 @@ def main():
     token = get_token(TOKEN_URL, CLIENT, "alice", "Passw0rd!")
     code, body = http("GET", f"{GW}/api/headers", headers={
         "Authorization": f"Bearer {token}",
-        # 客户端尝试伪造租户头——应被网关清除并改写为可信值
+        # 客户端尝试伪造租户/身份/角色头——应被网关清除并改写为可信值
         "X-Tenant-Id": "spoofed-by-client",
         "X-Tenant-Org": "spoofed-by-client",
+        "X-User": "attacker",
+        "X-Roles": "security-admin,forged-by-client",
     })
     check("合法 token 放行返回 200", code == 200, f"got {code}")
     headers = json.loads(body).get("headers", {}) if code == 200 else {}
@@ -60,13 +62,25 @@ def main():
     check("X-Tenant-Id 非空", bool(tid), f"got {tid!r}")
     check("客户端伪造的租户头被剥离", tid not in ("spoofed-by-client", None)
           and org != "spoofed-by-client", f"id={tid!r} org={org!r}")
+    # identity-context：注入 X-User(sub)/X-Roles（alice 持 realm 角色 security-viewer），且剥离客户端伪造值
+    xuser = header_value(headers, "X-User")
+    xroles = header_value(headers, "X-Roles")
+    roles_set = set(xroles.split(",")) if xroles else set()
+    check("上游收到 X-User（非空、非客户端伪造 attacker）", bool(xuser) and xuser != "attacker", f"got {xuser!r}")
+    check("上游 X-Roles 恰为 {security-viewer}（网关据 userinfo 注入、无 default-roles 等噪声角色）",
+          roles_set == {"security-viewer"}, f"got {xroles!r}")
+    check("客户端伪造的 X-Roles 被剥离（不含 forged-by-client）", "forged-by-client" not in roles_set, f"got {xroles!r}")
 
-    # 3) 第二租户（bob@tenant-demo）→ 隔离正确
+    # 3) 第二租户（bob@tenant-demo，无安全角色）→ 隔离正确 + X-Roles 不含 security-viewer
     token2 = get_token(TOKEN_URL, CLIENT, "bob", "Passw0rd!")
     code, body = http("GET", f"{GW}/api/headers",
                       headers={"Authorization": f"Bearer {token2}"})
-    org2 = header_value(json.loads(body).get("headers", {}), "X-Tenant-Org") if code == 200 else None
+    headers_b = json.loads(body).get("headers", {}) if code == 200 else {}
+    org2 = header_value(headers_b, "X-Tenant-Org")
     check("第二租户 X-Tenant-Org=tenant-demo", org2 == "tenant-demo", f"got {org2!r}")
+    roles_b = header_value(headers_b, "X-Roles")
+    check("无安全角色用户 X-Roles 不含 security-viewer（RBAC 将拒）",
+          "security-viewer" not in (roles_b.split(",") if roles_b else []), f"got {roles_b!r}")
 
     # 4) 多 membership + 已选定活动 org（carol：organization=[acme, tenant-demo]、active_organization=acme）
     #    → 解析到单一活动租户 acme、放行 200（修订后 ICD §3.4：活动 org 优先，不再「多 org 一律 403」）
