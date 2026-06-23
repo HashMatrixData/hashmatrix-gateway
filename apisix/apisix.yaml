@@ -29,11 +29,12 @@ upstreams:
     nodes:
       "privacy-mock:8080": 1
 
-# 共享插件链：OIDC 校验 + 租户上下文注入 + 审计。受保护路由统一引用，避免重复（DRY）。
-# 🔒 openid-connect 与 tenant-context 必须成对出现：前者验签并注入 X-Userinfo，后者据此注入 X-Tenant-*。
+# 共享插件链：OIDC 校验 + 租户上下文注入 + 身份/角色注入 + 审计。受保护路由统一引用，避免重复（DRY）。
+# 🔒 openid-connect 与 tenant-context / identity-context 必须成对出现：前者验签并注入 X-Userinfo，
+#    后二者据此分别注入 X-Tenant-*（租户隔离根）与 X-User/X-Roles（方法级 RBAC 根）。
 plugin_configs:
   - id: auth-tenant
-    desc: "OIDC 校验 → 注入 X-Tenant-* → 审计（受保护路由共享）"
+    desc: "OIDC 校验 → 注入 X-Tenant-* + X-User/X-Roles → 审计（受保护路由共享）"
     plugins:
       openid-connect:
         client_id: apisix
@@ -54,6 +55,11 @@ plugin_configs:
         active_tenant_claim: active_organization  # org-scoped token 选定的活动 org（§3.4 优先）
         fallback_claim: tenant
         require_tenant: true
+      # identity-context：据同一 X-Userinfo 注入 X-User(sub)/X-Roles(realm roles)，供应用方法级 RBAC。
+      identity-context:
+        userinfo_header: X-Userinfo
+        roles_claim: roles                    # realm-roles 映射器写入 userinfo 的 claim（见 realm-export.json）
+        require_identity: true
       audit-log: {}
 
 routes:

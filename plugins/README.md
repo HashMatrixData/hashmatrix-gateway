@@ -5,6 +5,7 @@
 | 插件 | 阶段 / 优先级 | 作用 |
 |--|--|--|
 | `tenant-context.lua` | `rewrite` / 2598 | **核心**：从 openid-connect 验签后注入的 `X-Userinfo` 提取 org/tenant → 注入 `X-Tenant-Id` / `X-Tenant-Org` / `X-Tenant-Subject`，并暴露 `$tenant_id` 变量；进入即剥离客户端伪造的同名头 |
+| `identity-context.lua` | `rewrite` / 2597 | 据同一 `X-Userinfo` 提取 `sub` / realm roles → 注入 `X-User` / `X-Roles`（逗号分隔，无 `ROLE_` 前缀），供应用侧 `starter-security` 还原主体与方法级授权（`@PreAuthorize`）；进入即剥离客户端伪造的同名头。与 tenant-context 职责分离（租户 vs 身份/角色），同链成对 |
 | `audit-log.lua` | `log` / 397 | 结构化审计行（方法/路径/状态/租户/主体/耗时/IP）输出到 APISIX 日志 |
 
 ## tenant-context 设计要点

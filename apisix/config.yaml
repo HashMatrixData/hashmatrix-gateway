@@ -24,6 +24,7 @@ plugins:
   - proxy-rewrite
   - openid-connect
   - tenant-context      # 自定义：JWT org/tenant → 注入 X-Tenant-*（核心）
+  - identity-context    # 自定义：userinfo sub/roles → 注入 X-User/X-Roles（方法级 RBAC 可信根）
   - limit-count
   - limit-req
   - response-rewrite
